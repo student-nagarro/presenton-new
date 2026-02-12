@@ -162,6 +162,29 @@ import TitleDescriptionSixChartsFourMetricsLayout, { Schema as TitleDescriptionS
 import TitleDescriptionFourChartsSixBulletsLayout, { Schema as TitleDescriptionFourChartsSixBulletsSchema, layoutId as TitleDescriptionFourChartsSixBulletsId, layoutName as TitleDescriptionFourChartsSixBulletsName, layoutDescription as TitleDescriptionFourChartsSixBulletsDesc } from './neo-swift/TitleDescriptionFourChartsSixBullets';
 
 
+// Nagarro Fluidic templates
+import BgSlide01CoverLeftLayout, { Schema as BgSlide01CoverLeftLayoutSchema, layoutId as BgSlide01CoverLeftLayoutId, layoutName as BgSlide01CoverLeftLayoutName, layoutDescription as BgSlide01CoverLeftLayoutDesc } from "./nagarro-fluidic/BgSlide01CoverLeftLayout";
+import BgSlide02CoverLayout, { Schema as BgSlide02CoverLayoutSchema, layoutId as BgSlide02CoverLayoutId, layoutName as BgSlide02CoverLayoutName, layoutDescription as BgSlide02CoverLayoutDesc } from "./nagarro-fluidic/BgSlide02CoverLayout";
+import BgSlide04CoverLayout, { Schema as BgSlide04CoverLayoutSchema, layoutId as BgSlide04CoverLayoutId, layoutName as BgSlide04CoverLayoutName, layoutDescription as BgSlide04CoverLayoutDesc } from "./nagarro-fluidic/BgSlide04CoverLayout";
+import BgSlide05BodyLayout, { Schema as BgSlide05BodyLayoutSchema, layoutId as BgSlide05BodyLayoutId, layoutName as BgSlide05BodyLayoutName, layoutDescription as BgSlide05BodyLayoutDesc } from "./nagarro-fluidic/BgSlide05BodyLayout";
+import BgSlide10ContentLayout, { Schema as BgSlide10ContentLayoutSchema, layoutId as BgSlide10ContentLayoutId, layoutName as BgSlide10ContentLayoutName, layoutDescription as BgSlide10ContentLayoutDesc } from "./nagarro-fluidic/BgSlide10ContentLayout";
+import BgSlide13SplitLayout, { Schema as BgSlide13SplitLayoutSchema, layoutId as BgSlide13SplitLayoutId, layoutName as BgSlide13SplitLayoutName, layoutDescription as BgSlide13SplitLayoutDesc } from "./nagarro-fluidic/BgSlide13SplitLayout";
+import BgSlide14TextLayout, { Schema as BgSlide14TextLayoutSchema, layoutId as BgSlide14TextLayoutId, layoutName as BgSlide14TextLayoutName, layoutDescription as BgSlide14TextLayoutDesc } from "./nagarro-fluidic/BgSlide14TextLayout";
+import BgSlide15AgendaLayout, { Schema as BgSlide15AgendaLayoutSchema, layoutId as BgSlide15AgendaLayoutId, layoutName as BgSlide15AgendaLayoutName, layoutDescription as BgSlide15AgendaLayoutDesc } from "./nagarro-fluidic/BgSlide15AgendaLayout";
+import BgSlide16KpisLayout, { Schema as BgSlide16KpisLayoutSchema, layoutId as BgSlide16KpisLayoutId, layoutName as BgSlide16KpisLayoutName, layoutDescription as BgSlide16KpisLayoutDesc } from "./nagarro-fluidic/BgSlide16KpisLayout";
+import BgSlide17AgendaLayout, { Schema as BgSlide17AgendaLayoutSchema, layoutId as BgSlide17AgendaLayoutId, layoutName as BgSlide17AgendaLayoutName, layoutDescription as BgSlide17AgendaLayoutDesc } from "./nagarro-fluidic/BgSlide17AgendaLayout";
+import BgSlide26BodyLayout, { Schema as BgSlide26BodyLayoutSchema, layoutId as BgSlide26BodyLayoutId, layoutName as BgSlide26BodyLayoutName, layoutDescription as BgSlide26BodyLayoutDesc } from "./nagarro-fluidic/BgSlide26BodyLayout";
+import BgSlide27BodyLayout, { Schema as BgSlide27BodyLayoutSchema, layoutId as BgSlide27BodyLayoutId, layoutName as BgSlide27BodyLayoutName, layoutDescription as BgSlide27BodyLayoutDesc } from "./nagarro-fluidic/BgSlide27BodyLayout";
+import BgSlide32BodyLayout, { Schema as BgSlide32BodyLayoutSchema, layoutId as BgSlide32BodyLayoutId, layoutName as BgSlide32BodyLayoutName, layoutDescription as BgSlide32BodyLayoutDesc } from "./nagarro-fluidic/BgSlide32BodyLayout";
+import BgSlide33BodyLayout, { Schema as BgSlide33BodyLayoutSchema, layoutId as BgSlide33BodyLayoutId, layoutName as BgSlide33BodyLayoutName, layoutDescription as BgSlide33BodyLayoutDesc } from "./nagarro-fluidic/BgSlide33BodyLayout";
+import BgSlide34BodyLayout, { Schema as BgSlide34BodyLayoutSchema, layoutId as BgSlide34BodyLayoutId, layoutName as BgSlide34BodyLayoutName, layoutDescription as BgSlide34BodyLayoutDesc } from "./nagarro-fluidic/BgSlide34BodyLayout";
+import BgSlide35BodyLayout, { Schema as BgSlide35BodyLayoutSchema, layoutId as BgSlide35BodyLayoutId, layoutName as BgSlide35BodyLayoutName, layoutDescription as BgSlide35BodyLayoutDesc } from "./nagarro-fluidic/BgSlide35BodyLayout";
+import BgSlide36BodyLayout, { Schema as BgSlide36BodyLayoutSchema, layoutId as BgSlide36BodyLayoutId, layoutName as BgSlide36BodyLayoutName, layoutDescription as BgSlide36BodyLayoutDesc } from "./nagarro-fluidic/BgSlide36BodyLayout";
+import BgSlide38BodyLayout, { Schema as BgSlide38BodyLayoutSchema, layoutId as BgSlide38BodyLayoutId, layoutName as BgSlide38BodyLayoutName, layoutDescription as BgSlide38BodyLayoutDesc } from "./nagarro-fluidic/BgSlide38BodyLayout";
+import BgSlide39BodyLayout, { Schema as BgSlide39BodyLayoutSchema, layoutId as BgSlide39BodyLayoutId, layoutName as BgSlide39BodyLayoutName, layoutDescription as BgSlide39BodyLayoutDesc } from "./nagarro-fluidic/BgSlide39BodyLayout";
+import BgSlide42ClosingVariantLayout, { Schema as BgSlide42ClosingVariantLayoutSchema, layoutId as BgSlide42ClosingVariantLayoutId, layoutName as BgSlide42ClosingVariantLayoutName, layoutDescription as BgSlide42ClosingVariantLayoutDesc } from "./nagarro-fluidic/BgSlide42ClosingVariantLayout";
+
+
 
 
 
@@ -176,6 +199,7 @@ import neoGeneralSettings from "./neo-general/settings.json";
 import neoStandardSettings from "./neo-standard/settings.json";
 import neoModernSettings from "./neo-modern/settings.json";
 import neoSwiftSettings from "./neo-swift/settings.json";
+import nagarroFluidicSettings from "./nagarro-fluidic/settings.json";
 
 // Helper to create template entry
 
@@ -280,6 +304,29 @@ export const neoSwiftTemplates: TemplateWithData[] = [
     createTemplateEntry(TitleDescriptionFourChartsSixBulletsLayout, TitleDescriptionFourChartsSixBulletsSchema, TitleDescriptionFourChartsSixBulletsId, TitleDescriptionFourChartsSixBulletsName, TitleDescriptionFourChartsSixBulletsDesc, "neo-swift", "TitleDescriptionFourChartsSixBulletsLayout"),
 ]
 
+export const nagarroFluidicTemplates: TemplateWithData[] = [
+    createTemplateEntry(BgSlide01CoverLeftLayout, BgSlide01CoverLeftLayoutSchema, BgSlide01CoverLeftLayoutId, BgSlide01CoverLeftLayoutName, BgSlide01CoverLeftLayoutDesc, "nagarro-fluidic", "BgSlide01CoverLeftLayout"),
+    createTemplateEntry(BgSlide02CoverLayout, BgSlide02CoverLayoutSchema, BgSlide02CoverLayoutId, BgSlide02CoverLayoutName, BgSlide02CoverLayoutDesc, "nagarro-fluidic", "BgSlide02CoverLayout"),
+    createTemplateEntry(BgSlide04CoverLayout, BgSlide04CoverLayoutSchema, BgSlide04CoverLayoutId, BgSlide04CoverLayoutName, BgSlide04CoverLayoutDesc, "nagarro-fluidic", "BgSlide04CoverLayout"),
+    createTemplateEntry(BgSlide05BodyLayout, BgSlide05BodyLayoutSchema, BgSlide05BodyLayoutId, BgSlide05BodyLayoutName, BgSlide05BodyLayoutDesc, "nagarro-fluidic", "BgSlide05BodyLayout"),
+    createTemplateEntry(BgSlide10ContentLayout, BgSlide10ContentLayoutSchema, BgSlide10ContentLayoutId, BgSlide10ContentLayoutName, BgSlide10ContentLayoutDesc, "nagarro-fluidic", "BgSlide10ContentLayout"),
+    createTemplateEntry(BgSlide13SplitLayout, BgSlide13SplitLayoutSchema, BgSlide13SplitLayoutId, BgSlide13SplitLayoutName, BgSlide13SplitLayoutDesc, "nagarro-fluidic", "BgSlide13SplitLayout"),
+    createTemplateEntry(BgSlide14TextLayout, BgSlide14TextLayoutSchema, BgSlide14TextLayoutId, BgSlide14TextLayoutName, BgSlide14TextLayoutDesc, "nagarro-fluidic", "BgSlide14TextLayout"),
+    createTemplateEntry(BgSlide15AgendaLayout, BgSlide15AgendaLayoutSchema, BgSlide15AgendaLayoutId, BgSlide15AgendaLayoutName, BgSlide15AgendaLayoutDesc, "nagarro-fluidic", "BgSlide15AgendaLayout"),
+    createTemplateEntry(BgSlide16KpisLayout, BgSlide16KpisLayoutSchema, BgSlide16KpisLayoutId, BgSlide16KpisLayoutName, BgSlide16KpisLayoutDesc, "nagarro-fluidic", "BgSlide16KpisLayout"),
+    createTemplateEntry(BgSlide17AgendaLayout, BgSlide17AgendaLayoutSchema, BgSlide17AgendaLayoutId, BgSlide17AgendaLayoutName, BgSlide17AgendaLayoutDesc, "nagarro-fluidic", "BgSlide17AgendaLayout"),
+    createTemplateEntry(BgSlide26BodyLayout, BgSlide26BodyLayoutSchema, BgSlide26BodyLayoutId, BgSlide26BodyLayoutName, BgSlide26BodyLayoutDesc, "nagarro-fluidic", "BgSlide26BodyLayout"),
+    createTemplateEntry(BgSlide27BodyLayout, BgSlide27BodyLayoutSchema, BgSlide27BodyLayoutId, BgSlide27BodyLayoutName, BgSlide27BodyLayoutDesc, "nagarro-fluidic", "BgSlide27BodyLayout"),
+    createTemplateEntry(BgSlide32BodyLayout, BgSlide32BodyLayoutSchema, BgSlide32BodyLayoutId, BgSlide32BodyLayoutName, BgSlide32BodyLayoutDesc, "nagarro-fluidic", "BgSlide32BodyLayout"),
+    createTemplateEntry(BgSlide33BodyLayout, BgSlide33BodyLayoutSchema, BgSlide33BodyLayoutId, BgSlide33BodyLayoutName, BgSlide33BodyLayoutDesc, "nagarro-fluidic", "BgSlide33BodyLayout"),
+    createTemplateEntry(BgSlide34BodyLayout, BgSlide34BodyLayoutSchema, BgSlide34BodyLayoutId, BgSlide34BodyLayoutName, BgSlide34BodyLayoutDesc, "nagarro-fluidic", "BgSlide34BodyLayout"),
+    createTemplateEntry(BgSlide35BodyLayout, BgSlide35BodyLayoutSchema, BgSlide35BodyLayoutId, BgSlide35BodyLayoutName, BgSlide35BodyLayoutDesc, "nagarro-fluidic", "BgSlide35BodyLayout"),
+    createTemplateEntry(BgSlide36BodyLayout, BgSlide36BodyLayoutSchema, BgSlide36BodyLayoutId, BgSlide36BodyLayoutName, BgSlide36BodyLayoutDesc, "nagarro-fluidic", "BgSlide36BodyLayout"),
+    createTemplateEntry(BgSlide38BodyLayout, BgSlide38BodyLayoutSchema, BgSlide38BodyLayoutId, BgSlide38BodyLayoutName, BgSlide38BodyLayoutDesc, "nagarro-fluidic", "BgSlide38BodyLayout"),
+    createTemplateEntry(BgSlide39BodyLayout, BgSlide39BodyLayoutSchema, BgSlide39BodyLayoutId, BgSlide39BodyLayoutName, BgSlide39BodyLayoutDesc, "nagarro-fluidic", "BgSlide39BodyLayout"),
+    createTemplateEntry(BgSlide42ClosingVariantLayout, BgSlide42ClosingVariantLayoutSchema, BgSlide42ClosingVariantLayoutId, BgSlide42ClosingVariantLayoutName, BgSlide42ClosingVariantLayoutDesc, "nagarro-fluidic", "BgSlide42ClosingVariantLayout"),
+];
+
 // General templates array
 export const generalTemplates: TemplateWithData[] = [
 
@@ -347,6 +394,7 @@ export const allLayouts: TemplateWithData[] = [
     ...neoModernTemplates,
     ...neoStandardTemplates,
     ...neoSwiftTemplates,
+    ...nagarroFluidicTemplates,
     ...generalTemplates,
     ...modernTemplates,
     ...standardTemplates,
@@ -385,6 +433,13 @@ export const templates: TemplateLayoutsWithSettings[] = [
         description: neoSwiftSettings.description,
         settings: neoSwiftSettings as TemplateGroupSettings,
         layouts: neoSwiftTemplates,
+    },
+    {
+        id: "nagarro-fluidic",
+        name: "Nagarro Fluidic",
+        description: nagarroFluidicSettings.description,
+        settings: nagarroFluidicSettings as TemplateGroupSettings,
+        layouts: nagarroFluidicTemplates,
     },
     {
         id: "general",
