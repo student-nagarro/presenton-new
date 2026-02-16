@@ -407,7 +407,12 @@ async def export_presentation_as_pptx(
 ):
     temp_dir = TEMP_FILE_SERVICE.create_temp_dir()
 
-    pptx_creator = PptxPresentationCreator(pptx_model, temp_dir)
+    template_path = os.getenv("PPTX_TEMPLATE_PATH", "").strip() or None
+    pptx_creator = PptxPresentationCreator(
+        pptx_model,
+        temp_dir,
+        template_path=template_path,
+    )
     await pptx_creator.create_ppt()
 
     export_directory = get_exports_directory()

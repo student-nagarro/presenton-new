@@ -92,6 +92,11 @@ class PptxParagraphModel(BaseModel):
     line_height: Optional[float] = None
     text: Optional[str] = None
     text_runs: Optional[List[PptxTextRunModel]] = None
+    list_type: Optional[Literal["ul", "ol"]] = None
+    list_level: Optional[int] = None
+    list_indent: Optional[int] = None
+    list_hanging: Optional[int] = None
+    list_item_index: Optional[int] = None
 
 
 class PptxObjectFitModel(BaseModel):

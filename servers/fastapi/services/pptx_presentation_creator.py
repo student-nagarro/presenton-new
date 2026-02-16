@@ -1,4 +1,6 @@
 import os
+import re
+import zipfile
 from typing import List, Optional
 from lxml import etree
 from services.html_to_text_runs_service import (
@@ -9,10 +11,12 @@ from pptx import Presentation
 from pptx.shapes.autoshape import Shape
 from pptx.slide import Slide
 from pptx.text.text import _Paragraph, TextFrame, Font, _Run
+from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from lxml.etree import fromstring, tostring
 from PIL import Image
 from pptx.oxml.xmlchemy import OxmlElement
+from pptx.oxml.ns import qn
 
 from pptx.util import Pt
 from pptx.dml.color import RGBColor
@@ -49,15 +53,30 @@ BLANK_SLIDE_LAYOUT = 6
 
 
 class PptxPresentationCreator:
-    def __init__(self, ppt_model: PptxPresentationModel, temp_dir: str):
+    def __init__(
+        self,
+        ppt_model: PptxPresentationModel,
+        temp_dir: str,
+        template_path: Optional[str] = None,
+    ):
         self._temp_dir = temp_dir
 
         self._ppt_model = ppt_model
         self._slide_models = ppt_model.slides
 
-        self._ppt = Presentation()
-        self._ppt.slide_width = Pt(1280)
-        self._ppt.slide_height = Pt(720)
+        template_path = (template_path or "").strip()
+        if template_path:
+            template_path = os.path.abspath(os.path.expanduser(template_path))
+            if not os.path.isfile(template_path):
+                raise FileNotFoundError(
+                    f"PPTX template not found: {template_path}"
+                )
+            self._ppt = Presentation(template_path)
+            self._remove_all_slides()
+        else:
+            self._ppt = Presentation()
+            self._ppt.slide_width = Pt(960)
+            self._ppt.slide_height = Pt(540)
 
     def get_sub_element(self, parent, tagname, **kwargs):
         """Helper method to create XML elements"""
@@ -65,6 +84,14 @@ class PptxPresentationCreator:
         element.attrib.update(kwargs)
         parent.append(element)
         return element
+
+    def _remove_all_slides(self) -> None:
+        # python-pptx has no public slide delete API; use the underlying XML list.
+        sldIdLst = self._ppt.slides._sldIdLst  # type: ignore[attr-defined]
+        for sldId in list(sldIdLst):
+            rId = sldId.rId
+            self._ppt.part.drop_rel(rId)
+            sldIdLst.remove(sldId)
 
     async def fetch_network_assets(self):
         image_urls = []
@@ -113,6 +140,8 @@ class PptxPresentationCreator:
     async def create_ppt(self):
         await self.fetch_network_assets()
 
+        self.set_theme_fonts()
+
         for slide_model in self._slide_models:
             # Adding global shapes to slide
             if self._ppt_model.shapes:
@@ -140,6 +169,33 @@ class PptxPresentationCreator:
 
         theme_part._blob = tostring(theme)
 
+    def set_theme_fonts(
+        self,
+        major_latin: str = "Equip Extended Medium",
+        minor_latin: str = "Equip",
+    ):
+        slide_master = self._ppt.slide_master
+        theme_part = slide_master.part.part_related_by(RT.THEME)
+        theme = fromstring(theme_part.blob)
+
+        nsmap = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
+
+        major_fonts = theme.xpath(
+            "a:themeElements/a:fontScheme/a:majorFont/a:latin",
+            namespaces=nsmap,
+        )
+        if major_fonts:
+            major_fonts[0].set("typeface", major_latin)
+
+        minor_fonts = theme.xpath(
+            "a:themeElements/a:fontScheme/a:minorFont/a:latin",
+            namespaces=nsmap,
+        )
+        if minor_fonts:
+            minor_fonts[0].set("typeface", minor_latin)
+
+        theme_part._blob = tostring(theme)
+
     def add_and_populate_slide(self, slide_model: PptxSlideModel):
         slide = self._ppt.slides.add_slide(self._ppt.slide_layouts[BLANK_SLIDE_LAYOUT])
 
@@ -149,7 +205,29 @@ class PptxPresentationCreator:
         if slide_model.note:
             slide.notes_slide.notes_text_frame.text = slide_model.note
 
-        for shape_model in slide_model.shapes:
+        shapes = slide_model.shapes
+        if shapes:
+            slide_width_pt = float(self._ppt.slide_width.pt)
+            slide_height_pt = float(self._ppt.slide_height.pt)
+            # Ensure full-bleed background images are added first (bottom layer).
+            full_bleed_backgrounds = []
+            other_shapes = []
+            for shape_model in shapes:
+                if isinstance(shape_model, PptxPictureBoxModel):
+                    pos = shape_model.position
+                    if (
+                        pos
+                        and abs(pos.left) <= 1
+                        and abs(pos.top) <= 1
+                        and abs(pos.width - slide_width_pt) <= 1
+                        and abs(pos.height - slide_height_pt) <= 1
+                    ):
+                        full_bleed_backgrounds.append(shape_model)
+                        continue
+                other_shapes.append(shape_model)
+            shapes = full_bleed_backgrounds + other_shapes
+
+        for shape_model in shapes:
             model_type = type(shape_model)
 
             if model_type is PptxPictureBoxModel:
@@ -234,6 +312,7 @@ class PptxPresentationCreator:
         )
 
         textbox = autoshape.text_frame
+        textbox.auto_size = MSO_AUTO_SIZE.NONE
         textbox.word_wrap = autoshape_box_model.text_wrap
 
         self.apply_fill_to_shape(autoshape, autoshape_box_model.fill)
@@ -251,6 +330,7 @@ class PptxPresentationCreator:
         textbox_shape.width += Pt(2)
 
         textbox = textbox_shape.text_frame
+        textbox.auto_size = MSO_AUTO_SIZE.NONE
         textbox.word_wrap = textbox_model.text_wrap
 
         self.apply_fill_to_shape(textbox_shape, textbox_model.fill)
@@ -267,6 +347,37 @@ class PptxPresentationCreator:
     def populate_paragraph(
         self, paragraph: _Paragraph, paragraph_model: PptxParagraphModel
     ):
+        if paragraph_model.list_level is not None:
+            paragraph.level = paragraph_model.list_level
+
+        list_type = paragraph_model.list_type or (
+            "ul" if paragraph_model.list_level is not None else None
+        )
+        if list_type:
+            self.apply_bullet_to_paragraph(
+                paragraph, list_type, paragraph_model.list_item_index
+            )
+
+        list_indent = paragraph_model.list_indent
+        list_hanging = paragraph_model.list_hanging
+        if list_type:
+            font_size = paragraph_model.font.size if paragraph_model.font else 16
+            min_hanging = max(12, round(font_size * 0.9))
+            desired_hanging = max(min_hanging, round(font_size * 1.2))
+            if list_hanging is None or list_hanging < min_hanging:
+                list_hanging = desired_hanging
+
+            explicit_zero = list_indent == 0
+            if list_indent is None:
+                list_indent = round(font_size * 1.4)
+            if not explicit_zero:
+                min_indent = list_hanging + max(8, round(font_size * 0.4))
+                if list_indent < min_indent:
+                    list_indent = min_indent
+
+        if list_indent is not None or list_hanging is not None:
+            self.apply_list_indents(paragraph, list_indent, list_hanging)
+
         if paragraph_model.spacing:
             self.apply_spacing_to_paragraph(paragraph, paragraph_model.spacing)
 
@@ -287,9 +398,76 @@ class PptxPresentationCreator:
         elif paragraph_model.text_runs:
             text_runs = paragraph_model.text_runs
 
+        if list_type and text_runs:
+            self.strip_bullet_prefix_from_first_run(text_runs, list_type)
+
         for text_run_model in text_runs:
             text_run = paragraph.add_run()
             self.populate_text_run(text_run, text_run_model)
+
+    def strip_bullet_prefix_from_first_run(
+        self, text_runs: List[PptxTextRunModel], list_type: str
+    ):
+        if not text_runs:
+            return
+
+        first = text_runs[0]
+        if not first.text:
+            return
+
+        original = first.text
+        stripped = original
+
+        if list_type == "ol":
+            stripped = re.sub(r"^\s*\d+[\.\)]\s+", "", stripped, count=1)
+        else:
+            stripped = re.sub(r"^\s*[\u2022\u00B7]\s+", "", stripped, count=1)
+            stripped = re.sub(r"^\s*-\s+", "", stripped, count=1)
+
+        if stripped != original:
+            first.text = stripped
+            if first.text == "" and len(text_runs) > 1:
+                text_runs.pop(0)
+
+    def apply_bullet_to_paragraph(
+        self, paragraph: _Paragraph, list_type: str, list_item_index: Optional[int]
+    ):
+        p_pr = paragraph._p.get_or_add_pPr()
+
+        bu_none = p_pr.find(qn("a:buNone"))
+        if bu_none is not None:
+            p_pr.remove(bu_none)
+
+        bu_char = p_pr.find(qn("a:buChar"))
+        if bu_char is not None:
+            p_pr.remove(bu_char)
+        bu_auto = p_pr.find(qn("a:buAutoNum"))
+        if bu_auto is not None:
+            p_pr.remove(bu_auto)
+
+        if list_type == "ol":
+            bu = OxmlElement("a:buAutoNum")
+            bu.set("type", "arabicPeriod")
+            if list_item_index is not None:
+                bu.set("startAt", str(list_item_index + 1))
+            p_pr.append(bu)
+        else:
+            bu = OxmlElement("a:buChar")
+            bu.set("char", "•")
+            p_pr.append(bu)
+
+    def apply_list_indents(
+        self, paragraph: _Paragraph, indent: Optional[int], hanging: Optional[int]
+    ):
+        p_pr = paragraph._p.get_or_add_pPr()
+        if indent is not None:
+            emu = int(Pt(indent))
+            p_pr.marL = emu
+            p_pr.set("marL", str(emu))
+        if hanging is not None:
+            emu = int(Pt(-hanging))
+            p_pr.indent = emu
+            p_pr.set("indent", str(emu))
 
     def parse_html_text_to_text_runs(self, font: Optional[PptxFontModel], text: str):
         return parse_inline_html_to_runs(text, font)
@@ -467,6 +645,12 @@ class PptxPresentationCreator:
         font.italic = font_model.italic
         font.size = Pt(font_model.size)
         font.bold = font_model.font_weight >= 600
+        if font.name == "Equip Extended ExtraBold":
+            font.bold = True
+        if font.name == "Equip Extended Light" and font.bold:
+            font.bold = False
+        if font.name == "Equip Medium" and (font.bold or font.italic):
+            font.name = "Equip"
         if font_model.underline is not None:
             font.underline = bool(font_model.underline)
         if font_model.strike is not None:
@@ -484,3 +668,51 @@ class PptxPresentationCreator:
 
     def save(self, path: str):
         self._ppt.save(path)
+        self._force_last_view_normal(path)
+
+    def _force_last_view_normal(self, path: str):
+        temp_path = f"{path}.tmp"
+        try:
+            with zipfile.ZipFile(path, "r") as zin:
+                names = set(zin.namelist())
+                view_props = None
+                if "ppt/viewProps.xml" in names:
+                    view_props = zin.read("ppt/viewProps.xml")
+
+                if view_props:
+                    try:
+                        root = fromstring(view_props)
+                        root.set("lastView", "sldView")
+                        view_props = tostring(
+                            root, xml_declaration=True, encoding="UTF-8", standalone="yes"
+                        )
+                    except Exception:
+                        view_props = re.sub(
+                            r'lastView="[^"]+"',
+                            'lastView="sldView"',
+                            view_props.decode("utf-8", errors="ignore"),
+                        ).encode("utf-8")
+                else:
+                    view_props = (
+                        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                        '<p:viewPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+                        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+                        'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+                        'lastView="sldView"/>'
+                    ).encode("utf-8")
+
+                with zipfile.ZipFile(temp_path, "w") as zout:
+                    for item in zin.infolist():
+                        if item.filename == "ppt/viewProps.xml":
+                            continue
+                        data = zin.read(item.filename)
+                        zout.writestr(item, data)
+                    zout.writestr("ppt/viewProps.xml", view_props)
+            os.replace(temp_path, path)
+        except Exception as exc:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except Exception:
+                pass
+            print(f"Could not set lastView to sldView: {exc}")
