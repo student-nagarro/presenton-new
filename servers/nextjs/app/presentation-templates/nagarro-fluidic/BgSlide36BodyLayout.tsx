@@ -6,9 +6,24 @@ export const layoutName = "Layout_bg_slide_36_body";
 export const layoutDescription = "bg-slide-36-body (three_columns_compare_light)";
 
 
+const MAX_BULLET_WORDS = 20
+const Bullet = z
+  .string()
+  .min(1)
+  .max(140)
+  .refine(
+    (s) =>
+      (s ?? "")
+        .toString()
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length <= MAX_BULLET_WORDS,
+    { message: `max ${MAX_BULLET_WORDS} words` }
+  )
+
 const Col = z.object({
   title: z.string().max(40).default(""),
-  bullets: z.array(z.string().min(1).max(140)).max(10).default([])
+  bullets: z.array(Bullet).max(10).default([])
 })
 
 export const Schema = z.object({
@@ -46,23 +61,39 @@ function RendererLayout({ data }) {
   function normalizeBullets(arr){
   if (!Array.isArray(arr)) return []
   return arr
-    .map(s => (s ?? "").toString().replace(/^\s*[-•*]\s+/, "").trim())
+    .map(s => (s ?? "").toString().replace(/^\s*(?:â€¢|[•·*-])\s+/, "").trim())
     .filter(Boolean)
+  }
+
+  function clampWords(input, maxWords){
+    const text = (input ?? "").toString().trim()
+    if (!text) return ""
+    const parts = text.split(/\s+/)
+    if (parts.length <= maxWords) return text
+    return parts.slice(0, maxWords).join(" ")
   }
 
   function BulletRows({ items, fontSize, lineHeight, maxItems = 8 }) {
     const clean = normalizeBullets(items).slice(0, maxItems)
     return (
-      <div style={{ display: "grid", rowGap: "0.35em", width: "100%" }}>
+      <ul
+        style={{
+          display: "grid",
+          rowGap: "0.35em",
+          margin: 0,
+          paddingLeft: "1.2em",
+          listStyleType: "disc",
+          listStylePosition: "outside",
+          fontSize: fontSize + "px",
+          width: "100%"
+        }}
+      >
         {clean.map((t, i) => (
-          <div key={i} style={{ display: "flex", gap: "0.6em", alignItems: "flex-start", width: "100%" }}>
-            <span style={{ fontSize: fontSize + "px", lineHeight: lineHeight, flex: "0 0 auto" }}>•</span>
-            <span style={{ fontSize: fontSize + "px", lineHeight: lineHeight, flex: "1 1 0", minWidth: 0, maxWidth: "100%", whiteSpace: "pre-wrap", overflowWrap: "break-word", wordBreak: "break-word" }}>
-              {t}
-            </span>
-          </div>
+          <li key={i} style={{ lineHeight: lineHeight, whiteSpace: "pre-wrap", overflowWrap: "break-word", wordBreak: "break-word", maxWidth: "100%" }}>
+            {t}
+          </li>
         ))}
-      </div>
+      </ul>
     )
   }
 
@@ -97,7 +128,9 @@ function RendererLayout({ data }) {
       {BOXES.map((b, i) => {
         const c = cols[i] || {}
         const cTitle = (c.title || "").toString()
-        const bullets = Array.isArray(c.bullets) ? c.bullets.slice(0,10) : []
+        const bullets = Array.isArray(c.bullets)
+          ? c.bullets.slice(0,10).map(b => clampWords(b, MAX_BULLET_WORDS))
+          : []
         const txtSize = fontFor(bullets.length)
 
         return (

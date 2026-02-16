@@ -35,7 +35,7 @@ function RendererLayout({ data }) {
   function normalizeBullets(arr){
   if (!Array.isArray(arr)) return []
   return arr
-    .map(s => (s ?? "").toString().replace(/^\s*[-•*]\s+/, "").trim())
+    .map(s => (s ?? "").toString().replace(/^\s*(?:â€¢|[•·*-])\s+/, "").trim())
     .filter(Boolean)
   }
 

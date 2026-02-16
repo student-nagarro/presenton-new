@@ -36,41 +36,30 @@ function RendererLayout({ data }) {
   function normalizeBullets(arr) {
     if (!Array.isArray(arr)) return []
     return arr
-      .map((s) => (s ?? "").toString().replace(/^\s*[-•*]\s+/, "").trim())
+      .map((s) => (s ?? "").toString().replace(/^\s*(?:â€¢|[•·*-])\s+/, "").trim())
       .filter(Boolean)
   }
 
   function BulletRows({ items, fontSize, lineHeight, maxItems = 6 }) {
     const clean = normalizeBullets(items).slice(0, maxItems)
     return (
-      <div style={{ display: "grid", rowGap: "0.30em" }}>
+      <ul
+        style={{
+          display: "grid",
+          rowGap: "0.30em",
+          margin: 0,
+          paddingLeft: "1.2em",
+          listStyleType: "disc",
+          listStylePosition: "outside",
+          fontSize: fontSize + "px"
+        }}
+      >
         {clean.map((t, i) => (
-          <div
-            key={i}
-            style={{ display: "flex", gap: "0.55em", alignItems: "flex-start" }}
-          >
-            <span
-              style={{
-                fontSize: fontSize + "px",
-                lineHeight: lineHeight,
-                flex: "0 0 auto",
-              }}
-            >
-              •
-            </span>
-            <span
-              style={{
-                fontSize: fontSize + "px",
-                lineHeight: lineHeight,
-                flex: "1 1 auto",
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {t}
-            </span>
-          </div>
+          <li key={i} style={{ lineHeight: lineHeight, whiteSpace: "pre-wrap" }}>
+            {t}
+          </li>
         ))}
-      </div>
+      </ul>
     )
   }
 
