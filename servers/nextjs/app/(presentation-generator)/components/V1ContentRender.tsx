@@ -48,7 +48,10 @@ export const V1ContentRender = ({ slide, isEditMode, theme }: { slide: any, isEd
             }
             return null;
         } else {
-            const template = getLayoutByLayoutId(slide.layout);
+            const normalizedLayout = slide.layout && slide.layout.includes(":")
+                ? slide.layout
+                : `nagarro-fluidic:${slide.layout}`;
+            const template = getLayoutByLayoutId(normalizedLayout);
             return template?.component ?? null;
         }
     }, [isCustomTemplate, customTemplate, slide.layout]);
