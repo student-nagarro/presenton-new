@@ -26,6 +26,7 @@ export interface ElementAttributes {
   },
   font?: {
     name?: string;
+    family?: string;
     size?: number;
     weight?: number;
     color?: string;
@@ -50,6 +51,16 @@ export interface ElementAttributes {
     right?: number;
   };
   zIndex?: number;
+  domPath?: string;
+  depth?: number;
+  isListItem?: boolean;
+  listType?: 'ul' | 'ol';
+  listLevel?: number;
+  listStyleType?: string;
+  listStylePosition?: 'inside' | 'outside';
+  listIndent?: number;
+  listHanging?: number;
+  listItemIndex?: number;
   textAlign?: 'left' | 'center' | 'right' | 'justify';
   lineHeight?: number;
   borderRadius?: number[];

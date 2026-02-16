@@ -37,6 +37,24 @@ function convertTextAlignToPptxAlignment(textAlign?: string): PptxAlignment | un
   }
 }
 
+const PX_TO_PT = 72 / 96;
+const DEFAULT_FONT_SIZE_PX = 16;
+
+function pxToPt(value?: number): number | undefined {
+  if (value === undefined || value === null || isNaN(value)) return undefined;
+  return value * PX_TO_PT;
+}
+
+function pxToPtRounded(value?: number): number {
+  const pt = pxToPt(value);
+  return pt === undefined ? 0 : Math.round(pt);
+}
+
+function pxToPtRoundedOr(value: number | undefined, fallbackPx: number): number {
+  const raw = value ?? fallbackPx;
+  return Math.round(raw * PX_TO_PT);
+}
+
 function convertLineHeightToRelative(lineHeight?: number, fontSize?: number): number | undefined {
   if (!lineHeight) return undefined;
 
@@ -50,6 +68,63 @@ function convertLineHeightToRelative(lineHeight?: number, fontSize?: number): nu
   }
 
   return calculatedLineHeight - 0.3
+}
+
+function getListParagraphMeta(element: ElementAttributes, fontSizePt: number) {
+  if (!element.isListItem) {
+    return {};
+  }
+
+  const listIndentPt = element.listIndent !== undefined ? pxToPtRounded(element.listIndent) : undefined;
+  const indent = listIndentPt ?? Math.round(fontSizePt * 1.5);
+  const hangingOverride = element.listHanging !== undefined ? pxToPtRounded(element.listHanging) : undefined;
+  const hangingBase = Math.max(Math.round(indent * 0.3), Math.round(fontSizePt * 0.3));
+  const hanging = hangingOverride ?? (element.listStylePosition === "inside" ? 0 : hangingBase);
+
+  return {
+    list_type: element.listType,
+    list_level: element.listLevel ?? 0,
+    list_indent: indent,
+    list_hanging: hanging,
+    list_item_index: element.listItemIndex,
+  };
+}
+
+export function mapToPptxFontName(rawName?: string, rawFamily?: string, weight?: number, tagName?: string): string {
+  const input = `${rawFamily ?? ""} ${rawName ?? ""}`.toLowerCase();
+  const w = weight ?? 400;
+  const tag = (tagName ?? "").toLowerCase();
+  const raw = rawName ?? "";
+
+  const toEquip = (fontWeight: number) => {
+    if (fontWeight >= 600) return "Equip";
+    if (fontWeight >= 500) return "Equip Medium";
+    return "Equip";
+  };
+  const toEquipExt = (fontWeight: number) =>
+    fontWeight >= 700 ? "Equip Extended ExtraBold" : "Equip Extended Light";
+
+  // Next/font class names (match Equip Extended before Equip)
+  if (raw.startsWith("__equipExt")) return toEquipExt(w);
+  if (raw.startsWith("__equip")) return toEquip(w);
+  if (raw.startsWith("__inter")) return toEquip(w);
+
+  // Equip Extended
+  if (input.includes("equip extended") || input.includes("equipext") || input.includes("--font-equip-ext")) {
+    return toEquipExt(w);
+  }
+
+  // Equip
+  if (input.includes("equip") || input.includes("--font-equip")) {
+    return toEquip(w);
+  }
+
+  // Headline roles (fallback if no explicit font family)
+  if (tag === "h1" || tag === "h2") return "Equip Extended ExtraBold";
+  if (tag === "h3") return "Equip Extended Light";
+
+  // Fallback to embedded Equip faces only
+  return toEquip(w);
 }
 
 export function convertElementAttributesToPptxSlides(
@@ -105,10 +180,10 @@ function convertElementToPptxShape(
 
 function convertToTextBox(element: ElementAttributes): PptxTextBoxModel {
   const position: PptxPositionModel = {
-    left: Math.round(element.position?.left ?? 0),
-    top: Math.round(element.position?.top ?? 0),
-    width: Math.round(element.position?.width ?? 0),
-    height: Math.round(element.position?.height ?? 0)
+    left: pxToPtRounded(element.position?.left),
+    top: pxToPtRounded(element.position?.top),
+    width: pxToPtRounded(element.position?.width),
+    height: pxToPtRounded(element.position?.height)
   };
 
   const fill: PptxFillModel | undefined = element.background?.color ? {
@@ -116,20 +191,23 @@ function convertToTextBox(element: ElementAttributes): PptxTextBoxModel {
     opacity: element.background.opacity ?? 1.0
   } : undefined;
 
+  const fontSizePt = pxToPtRoundedOr(element.font?.size, DEFAULT_FONT_SIZE_PX);
   const font: PptxFontModel | undefined = element.font ? {
-    name: element.font.name ?? "Inter",
-    size: Math.round(element.font.size ?? 16),
+    name: mapToPptxFontName(element.font.name, element.font.family, element.font.weight, element.tagName),
+    size: fontSizePt,
     font_weight: element.font.weight ?? 400,
     italic: element.font.italic ?? false,
     color: element.font.color ?? "000000"
   } : undefined;
 
+  const listMeta = getListParagraphMeta(element, fontSizePt);
   const paragraph: PptxParagraphModel = {
     spacing: undefined,
     alignment: convertTextAlignToPptxAlignment(element.textAlign),
     font,
     line_height: convertLineHeightToRelative(element.lineHeight, element.font?.size),
-    text: element.innerText
+    text: element.innerText,
+    ...listMeta
   };
 
   return {
@@ -144,10 +222,10 @@ function convertToTextBox(element: ElementAttributes): PptxTextBoxModel {
 
 function convertToAutoShapeBox(element: ElementAttributes): PptxAutoShapeBoxModel {
   const position: PptxPositionModel = {
-    left: Math.round(element.position?.left ?? 0),
-    top: Math.round(element.position?.top ?? 0),
-    width: Math.round(element.position?.width ?? 0),
-    height: Math.round(element.position?.height ?? 0)
+    left: pxToPtRounded(element.position?.left),
+    top: pxToPtRounded(element.position?.top),
+    width: pxToPtRounded(element.position?.width),
+    height: pxToPtRounded(element.position?.height)
   };
   const fill: PptxFillModel | undefined = element.background?.color ? {
     color: element.background.color,
@@ -156,30 +234,33 @@ function convertToAutoShapeBox(element: ElementAttributes): PptxAutoShapeBoxMode
 
   const stroke: PptxStrokeModel | undefined = element.border?.color ? {
     color: element.border.color,
-    thickness: element.border.width ?? 1,
+    thickness: pxToPt(element.border.width ?? 1) ?? 1,
     opacity: element.border.opacity ?? 1.0
   } : undefined;
 
   const shadow: PptxShadowModel | undefined = element.shadow?.color ? {
-    radius: Math.round(element.shadow.radius ?? 4),
-    offset: Math.round(element.shadow.offset ? Math.sqrt(element.shadow.offset[0] ** 2 + element.shadow.offset[1] ** 2) : 0),
+    radius: pxToPtRounded(element.shadow.radius ?? 4),
+    offset: pxToPtRounded(element.shadow.offset ? Math.sqrt(element.shadow.offset[0] ** 2 + element.shadow.offset[1] ** 2) : 0),
     color: element.shadow.color,
     opacity: element.shadow.opacity ?? 0.5,
     angle: Math.round(element.shadow.angle ?? 0)
   } : undefined;
 
+  const fontSizePt = pxToPtRoundedOr(element.font?.size, DEFAULT_FONT_SIZE_PX);
+  const listMeta = getListParagraphMeta(element, fontSizePt);
   const paragraphs: PptxParagraphModel[] | undefined = element.innerText ? [{
     spacing: undefined,
     alignment: convertTextAlignToPptxAlignment(element.textAlign),
     font: element.font ? {
-      name: element.font.name ?? "Inter",
-      size: Math.round(element.font.size ?? 16),
+      name: mapToPptxFontName(element.font.name, element.font.family, element.font.weight, element.tagName),
+      size: fontSizePt,
       font_weight: element.font.weight ?? 400,
       italic: element.font.italic ?? false,
       color: element.font.color ?? "000000"
     } : undefined,
     line_height: convertLineHeightToRelative(element.lineHeight, element.font?.size),
-    text: element.innerText
+    text: element.innerText,
+    ...listMeta
   }] : undefined;
 
   const shapeType = element.borderRadius ? PptxShapeType.ROUNDED_RECTANGLE : PptxShapeType.RECTANGLE;
@@ -187,7 +268,7 @@ function convertToAutoShapeBox(element: ElementAttributes): PptxAutoShapeBoxMode
   let borderRadius = undefined;
   for (const eachCornerRadius of element.borderRadius ?? []) {
     if (eachCornerRadius > 0) {
-      borderRadius = Math.max(borderRadius ?? 0, eachCornerRadius);
+      borderRadius = Math.max(borderRadius ?? 0, pxToPtRounded(eachCornerRadius));
     }
   }
 
@@ -207,10 +288,10 @@ function convertToAutoShapeBox(element: ElementAttributes): PptxAutoShapeBoxMode
 
 function convertToPictureBox(element: ElementAttributes): PptxPictureBoxModel {
   const position: PptxPositionModel = {
-    left: Math.round(element.position?.left ?? 0),
-    top: Math.round(element.position?.top ?? 0),
-    width: Math.round(element.position?.width ?? 0),
-    height: Math.round(element.position?.height ?? 0)
+    left: pxToPtRounded(element.position?.left),
+    top: pxToPtRounded(element.position?.top),
+    width: pxToPtRounded(element.position?.width),
+    height: pxToPtRounded(element.position?.height)
   };
 
   const objectFit: PptxObjectFitModel = {
@@ -229,7 +310,7 @@ function convertToPictureBox(element: ElementAttributes): PptxPictureBoxModel {
     clip: element.clip ?? true,
     invert: element.filters?.invert === 1,
     opacity: element.opacity,
-    border_radius: element.borderRadius ? element.borderRadius.map(r => Math.round(r)) : undefined,
+    border_radius: element.borderRadius ? element.borderRadius.map(r => Math.round(r * PX_TO_PT)) : undefined,
     shape: element.shape ? (element.shape as PptxBoxShapeEnum) : PptxBoxShapeEnum.RECTANGLE,
     object_fit: objectFit,
     picture
@@ -238,17 +319,17 @@ function convertToPictureBox(element: ElementAttributes): PptxPictureBoxModel {
 
 function convertToConnector(element: ElementAttributes): PptxConnectorModel {
   const position: PptxPositionModel = {
-    left: Math.round(element.position?.left ?? 0),
-    top: Math.round(element.position?.top ?? 0),
-    width: Math.round(element.position?.width ?? 0),
-    height: Math.round(element.position?.height ?? 0)
+    left: pxToPtRounded(element.position?.left),
+    top: pxToPtRounded(element.position?.top),
+    width: pxToPtRounded(element.position?.width),
+    height: pxToPtRounded(element.position?.height)
   };
 
   return {
     shape_type: "connector",
     type: PptxConnectorType.STRAIGHT,
     position,
-    thickness: element.border?.width ?? 0.5,
+    thickness: pxToPt(element.border?.width ?? 0.5) ?? 0.5,
     color: element.border?.color || element.background?.color || '000000',
     opacity: element.border?.opacity ?? 1.0
   };

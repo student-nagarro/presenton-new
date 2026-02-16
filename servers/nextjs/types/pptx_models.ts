@@ -265,6 +265,11 @@ export interface PptxParagraphModel {
   line_height?: number;
   text?: string;
   text_runs?: PptxTextRunModel[];
+  list_type?: "ul" | "ol";
+  list_level?: number;
+  list_indent?: number;
+  list_hanging?: number;
+  list_item_index?: number;
 }
 
 export interface PptxObjectFitModel {

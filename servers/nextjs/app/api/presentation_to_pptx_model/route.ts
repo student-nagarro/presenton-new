@@ -11,6 +11,10 @@ import fs from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import sharp from "sharp";
+import { createHash } from "crypto";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 interface GetAllChildElementsAttributesArgs {
   element: ElementHandle<Element>;
@@ -26,7 +30,12 @@ interface GetAllChildElementsAttributesArgs {
   inheritedBorderRadius?: number[];
   inheritedZIndex?: number;
   inheritedOpacity?: number;
+  domPath?: string;
   screenshotsDir: string;
+}
+
+function hashStableId(stableId: string): string {
+  return createHash("sha256").update(stableId).digest("hex").slice(0, 16);
 }
 
 export async function GET(request: NextRequest) {
@@ -36,6 +45,7 @@ export async function GET(request: NextRequest) {
   try {
     const id = await getPresentationId(request);
     [browser, page] = await getBrowserAndPage(id);
+    await waitForExportReady(page);
     const screenshotsDir = getScreenshotsDir();
 
     const { slides, speakerNotes } = await getSlidesAndSpeakerNotes(page);
@@ -105,6 +115,16 @@ async function getBrowserAndPage(id: string): Promise<[Browser, Page]> {
   return [browser, page];
 }
 
+async function waitForExportReady(page: Page) {
+  await page.addStyleTag({
+    content: `*,*::before,*::after{animation:none !important;transition:none !important;}`,
+  });
+  await page.waitForFunction(
+    () => (window as any).__PRESENTON_EXPORT_READY__ === true,
+    { timeout: 60000 }
+  );
+}
+
 async function closeBrowserAndPage(browser: Browser | null, page: Page | null) {
   await page?.close();
   await browser?.close();
@@ -131,9 +151,16 @@ async function postProcessSlidesAttributes(
   speakerNotes: string[]
 ) {
   for (const [index, slideAttributes] of slidesAttributes.entries()) {
-    for (const element of slideAttributes.elements) {
+    for (const [elementIndex, element] of slideAttributes.elements.entries()) {
       if (element.should_screenshot) {
-        const screenshotPath = await screenshotElement(element, screenshotsDir);
+        const stableId = element.domPath
+          ? `slide${index}-${element.domPath}`
+          : `slide${index}-el${elementIndex}`;
+        const screenshotPath = await screenshotElement(
+          element,
+          screenshotsDir,
+          stableId
+        );
         element.imageSrc = screenshotPath;
         element.should_screenshot = false;
         element.objectFit = "cover";
@@ -146,11 +173,13 @@ async function postProcessSlidesAttributes(
 
 async function screenshotElement(
   element: ElementAttributes,
-  screenshotsDir: string
+  screenshotsDir: string,
+  stableId?: string
 ) {
+  const safeId = stableId ? hashStableId(stableId) : uuidv4();
   const screenshotPath = path.join(
     screenshotsDir,
-    `${uuidv4()}.png`
+    `${safeId}.png`
   ) as `${string}.png`;
 
   // For SVG elements, use convertSvgToPng
@@ -278,6 +307,7 @@ async function getAllChildElementsAttributes({
   inheritedBorderRadius,
   inheritedZIndex,
   inheritedOpacity,
+  domPath = "",
   screenshotsDir,
 }: GetAllChildElementsAttributesArgs): Promise<SlideAttributesResult> {
   if (!rootRect) {
@@ -298,11 +328,23 @@ async function getAllChildElementsAttributes({
 
   const allResults: { attributes: ElementAttributes; depth: number }[] = [];
 
-  for (const childElementHandle of directChildElementHandles) {
+  for (const [childIndex, childElementHandle] of directChildElementHandles.entries()) {
+    const childDomPath = domPath ? `${domPath}.${childIndex}` : `${childIndex}`;
     const attributes = await getElementAttributes(childElementHandle);
+    attributes.domPath = childDomPath;
+    attributes.depth = depth;
 
     if (
       ["style", "script", "link", "meta", "path"].includes(attributes.tagName)
+    ) {
+      continue;
+    }
+
+    const bulletOnlyText = attributes.innerText?.trim();
+    if (
+      attributes.isListItem &&
+      bulletOnlyText &&
+      (bulletOnlyText === "\u2022" || bulletOnlyText === "\u00B7")
     ) {
       continue;
     }
@@ -397,6 +439,7 @@ async function getAllChildElementsAttributes({
       element: childElementHandle,
       rootRect: rootRect,
       depth: depth + 1,
+      domPath: childDomPath,
       inheritedFont: attributes.font || inheritedFont,
       inheritedBackground: attributes.background || inheritedBackground,
       inheritedBorderRadius: attributes.borderRadius || inheritedBorderRadius,
@@ -406,7 +449,10 @@ async function getAllChildElementsAttributes({
     });
     allResults.push(
       ...childResults.elements.map((attr) => ({
-        attributes: attr,
+        attributes: {
+          ...attr,
+          depth: depth + 1,
+        },
         depth: depth + 1,
       }))
     );
@@ -462,16 +508,228 @@ async function getAllChildElementsAttributes({
       : allResults;
 
   if (depth === 0) {
-    const sortedElements = filteredResults
+    const mergeBulletMarkers = (
+      results: { attributes: ElementAttributes; depth: number }[]
+    ) => {
+      const getMarkerInfo = (attr: ElementAttributes) => {
+        if (!attr.innerText || !attr.position) return null;
+        if (attr.isListItem) return null;
+
+        const trimmed = attr.innerText.replace(/\u00A0/g, " ").trim();
+        if (!trimmed) return null;
+
+        const pos = attr.position;
+        if (pos.width === undefined || pos.height === undefined) {
+          return null;
+        }
+
+        let type: "ul" | "ol" | null = null;
+        let listItemIndex: number | undefined;
+
+        const normalized = trimmed === "â€¢" ? "•" : trimmed;
+        const numMatch = normalized.match(/^(\d+)[\.\)]$/);
+        if (numMatch) {
+          type = "ol";
+          const num = parseInt(numMatch[1], 10);
+          listItemIndex = isNaN(num) ? undefined : Math.max(0, num - 1);
+        } else if (/^[\u2022\u00B7-]$/.test(normalized)) {
+          type = "ul";
+        }
+
+        if (!type) return null;
+
+        const fontSize = attr.font?.size ?? 14;
+        const maxWidth = Math.max(fontSize * 2.2, 24);
+        const maxHeight = Math.max(fontSize * 2.5, 30);
+
+        if (pos.width > maxWidth || pos.height > maxHeight) {
+          return null;
+        }
+
+        return { type, listItemIndex };
+      };
+
+      const markers = results
+        .map((entry, index) => {
+          const info = getMarkerInfo(entry.attributes);
+          if (!info) return null;
+          return { index, attributes: entry.attributes, info };
+        })
+        .filter(Boolean) as {
+        index: number;
+        attributes: ElementAttributes;
+        info: { type: "ul" | "ol"; listItemIndex?: number };
+      }[];
+
+      if (markers.length < 2) {
+        return results;
+      }
+
+      const bucketSize = 20;
+      const markerBuckets = new Map<number, number>();
+      for (const marker of markers) {
+        const left = marker.attributes.position?.left ?? 0;
+        const bucket = Math.round(left / bucketSize);
+        markerBuckets.set(bucket, (markerBuckets.get(bucket) ?? 0) + 1);
+      }
+
+      const removed = new Set<number>();
+      const usedTargets = new Set<number>();
+
+      for (const marker of markers) {
+        if (!marker.attributes.position) continue;
+
+        const markerPos = marker.attributes.position;
+        if (markerPos.left === undefined) continue;
+        if (markerPos.top === undefined || markerPos.height === undefined) continue;
+        if (markerPos.width === undefined) continue;
+
+        const bucket = Math.round(markerPos.left / bucketSize);
+        if ((markerBuckets.get(bucket) ?? 0) < 2) {
+          continue;
+        }
+
+        const markerCenterY = markerPos.top + markerPos.height / 2;
+        const yTolerance = Math.max(markerPos.height * 0.6, 6);
+
+        let bestIndex = -1;
+        let bestDx = Number.POSITIVE_INFINITY;
+
+        for (let i = 0; i < results.length; i++) {
+          if (i === marker.index || removed.has(i) || usedTargets.has(i)) {
+            continue;
+          }
+
+          const candidate = results[i].attributes;
+          if (!candidate.position || !candidate.innerText) continue;
+          if (candidate.isListItem) continue;
+
+          const candidateText = candidate.innerText.trim();
+          if (!candidateText) continue;
+          if (getMarkerInfo(candidate)) continue;
+
+          const candidatePos = candidate.position;
+          if (
+            candidatePos.left === undefined ||
+            candidatePos.top === undefined ||
+            candidatePos.height === undefined ||
+            candidatePos.width === undefined
+          ) {
+            continue;
+          }
+
+          const dx = candidatePos.left - markerPos.left;
+          if (dx <= 0) continue;
+
+          const maxDx = Math.max(markerPos.width * 8, 200);
+          if (dx > maxDx) continue;
+
+          const candidateCenterY =
+            candidatePos.top + candidatePos.height / 2;
+          if (Math.abs(candidateCenterY - markerCenterY) > yTolerance) {
+            continue;
+          }
+
+          if (dx < bestDx) {
+            bestDx = dx;
+            bestIndex = i;
+          }
+        }
+
+        if (bestIndex === -1) continue;
+
+        const target = results[bestIndex].attributes;
+        if (!target.position) continue;
+
+        const targetPos = target.position;
+        if (targetPos.left === undefined || targetPos.width === undefined) {
+          continue;
+        }
+
+        const dx = targetPos.left - markerPos.left;
+        targetPos.left = markerPos.left;
+        targetPos.width += dx;
+
+        target.isListItem = true;
+        target.listType = marker.info.type;
+        target.listLevel = 0;
+        target.listIndent = dx;
+        target.listHanging = dx;
+        if (marker.info.type === "ol") {
+          target.listItemIndex = marker.info.listItemIndex;
+        }
+
+        removed.add(marker.index);
+        usedTargets.add(bestIndex);
+      }
+
+      return results.filter((_, index) => !removed.has(index));
+    };
+
+    const mergedResults = mergeBulletMarkers(filteredResults);
+    const sortedElements = mergedResults
       .sort((a, b) => {
+        const epsilon = 1;
+        const posA = a.attributes.position;
+        const posB = b.attributes.position;
+        const isFullBleedA = !!(
+          posA &&
+          rootRect &&
+          Math.abs((posA.left ?? 0) - 0) <= epsilon &&
+          Math.abs((posA.top ?? 0) - 0) <= epsilon &&
+          Math.abs((posA.width ?? 0) - rootRect.width) <= epsilon &&
+          Math.abs((posA.height ?? 0) - rootRect.height) <= epsilon
+        );
+        const isFullBleedB = !!(
+          posB &&
+          rootRect &&
+          Math.abs((posB.left ?? 0) - 0) <= epsilon &&
+          Math.abs((posB.top ?? 0) - 0) <= epsilon &&
+          Math.abs((posB.width ?? 0) - rootRect.width) <= epsilon &&
+          Math.abs((posB.height ?? 0) - rootRect.height) <= epsilon
+        );
+        const isImageA =
+          !!a.attributes.imageSrc ||
+          a.attributes.tagName === "img" ||
+          (typeof a.attributes.className === "string" &&
+            a.attributes.className.includes("image"));
+        const isImageB =
+          !!b.attributes.imageSrc ||
+          b.attributes.tagName === "img" ||
+          (typeof b.attributes.className === "string" &&
+            b.attributes.className.includes("image"));
+        const isBackgroundA = isImageA && isFullBleedA;
+        const isBackgroundB = isImageB && isFullBleedB;
+
+        if (isBackgroundA !== isBackgroundB) {
+          return isBackgroundA ? -1 : 1;
+        }
+
         const zIndexA = a.attributes.zIndex || 0;
         const zIndexB = b.attributes.zIndex || 0;
 
-        if (zIndexA === zIndexB) {
-          return a.depth - b.depth;
+        if (zIndexA !== zIndexB) {
+          return zIndexA - zIndexB;
         }
 
-        return zIndexB - zIndexA;
+        const depthDiff = a.depth - b.depth;
+        if (depthDiff !== 0) {
+          return depthDiff;
+        }
+
+        const domPathA = a.attributes.domPath || "";
+        const domPathB = b.attributes.domPath || "";
+        if (domPathA !== domPathB) {
+          return domPathA.localeCompare(domPathB);
+        }
+
+        const idA = a.attributes.id || "";
+        const idB = b.attributes.id || "";
+        if (idA !== idB) {
+          return idA.localeCompare(idB);
+        }
+
+        return 0;
       })
       .map(({ attributes }) => {
         if (
@@ -875,6 +1133,7 @@ async function getElementAttributes(
 
       const font = {
         name: fontName,
+        family: fontFamily,
         size: isNaN(fontSize) ? undefined : fontSize,
         weight: isNaN(fontWeight) ? undefined : fontWeight,
         color: fontColorResult.hex,
@@ -1100,6 +1359,142 @@ async function getElementAttributes(
       return Object.keys(filters).length > 0 ? filters : undefined;
     }
 
+    function parseListInfo(el: Element) {
+      const liEl = el.closest("li");
+        if (!liEl) {
+          return {
+            isListItem: false,
+            listType: undefined,
+            listLevel: undefined,
+            listStyleType: undefined,
+            listStylePosition: undefined,
+            listIndent: undefined,
+            listHanging: undefined,
+            listItemIndex: undefined,
+          };
+        }
+
+      const listEl = liEl.closest("ul,ol");
+      const listType = listEl ? listEl.tagName.toLowerCase() : undefined;
+      const listStyles = listEl ? window.getComputedStyle(listEl) : undefined;
+      const listStyleType = listStyles?.listStyleType;
+      const listStylePosition = listStyles?.listStylePosition as
+        | "inside"
+        | "outside"
+        | undefined;
+
+      const wrapper = document.getElementById("presentation-slides-wrapper");
+      let listLevelCount = 0;
+      let listIndentPx = 0;
+      let currentList = listEl;
+
+      while (currentList && (!wrapper || wrapper.contains(currentList))) {
+        listLevelCount += 1;
+        const cs = window.getComputedStyle(currentList);
+        const paddingLeft = parseFloat(cs.paddingLeft || "0");
+        const marginLeft = parseFloat(cs.marginLeft || "0");
+        listIndentPx += (isNaN(paddingLeft) ? 0 : paddingLeft) + (isNaN(marginLeft) ? 0 : marginLeft);
+        const nextParent = currentList.parentElement;
+        currentList = nextParent ? nextParent.closest("ul,ol") : null;
+      }
+
+      const listLevel = Math.max(0, listLevelCount - 1);
+
+      let listItemIndex: number | undefined;
+      const parent = liEl.parentElement;
+      if (parent) {
+        const items = Array.from(parent.children).filter(
+          (child) => (child as HTMLElement).tagName?.toLowerCase() === "li"
+        );
+        const index = items.indexOf(liEl);
+        listItemIndex = index >= 0 ? index : undefined;
+      }
+
+        return {
+          isListItem: true,
+          listType: listType as "ul" | "ol" | undefined,
+          listLevel,
+          listStyleType: listStyleType || undefined,
+          listStylePosition,
+          listIndent: listIndentPx > 0 ? listIndentPx : undefined,
+          listHanging: undefined,
+          listItemIndex,
+        };
+      }
+
+    function parsePrefixListFallback(el: Element) {
+      const rawText = el.textContent || "";
+      const trimmed = rawText.replace(/^\s+/, "");
+      if (!trimmed) {
+        return null;
+      }
+
+      const bulletMatch = trimmed.match(/^[\u2022\u00B7]\s+/);
+      const dashMatch = trimmed.match(/^-\\s+/);
+      const numMatch = trimmed.match(/^(\\d+)[\\.)]\\s+/);
+
+      const type = numMatch ? "ol" : bulletMatch || dashMatch ? "ul" : null;
+      if (!type) {
+        return null;
+      }
+
+      const parent = el.parentElement;
+      if (!parent) {
+        return null;
+      }
+
+      const siblings = Array.from(parent.children).filter(
+        (child) => child.nodeType === Node.ELEMENT_NODE
+      );
+
+      let matchCount = 0;
+      let matchedIndex = -1;
+      for (const sibling of siblings) {
+        const siblingText = (sibling.textContent || "").replace(/^\s+/, "");
+        if (!siblingText) continue;
+
+        const siblingBullet = siblingText.match(/^[\u2022\u00B7]\s+/);
+        const siblingDash = siblingText.match(/^-\\s+/);
+        const siblingNum = siblingText.match(/^(\\d+)[\\.)]\\s+/);
+        const siblingType = siblingNum
+          ? "ol"
+          : siblingBullet || siblingDash
+          ? "ul"
+          : null;
+
+        if (siblingType && siblingType === type) {
+          if (sibling === el) {
+            matchedIndex = matchCount;
+          }
+          matchCount += 1;
+        }
+      }
+
+      if (matchCount < 2) {
+        return null;
+      }
+
+      const numberMatch = numMatch ? parseInt(numMatch[1], 10) : undefined;
+
+        return {
+          isListItem: true,
+          listType: type as "ul" | "ol",
+          listLevel: 0,
+          listStyleType: type === "ol" ? "decimal" : "disc",
+          listStylePosition: undefined,
+          listIndent: undefined,
+          listHanging: undefined,
+          listItemIndex:
+            type === "ol"
+              ? numberMatch && numberMatch > 0
+                ? numberMatch - 1
+                : matchedIndex >= 0
+              ? matchedIndex
+              : undefined
+            : undefined,
+      };
+    }
+
     function parseElementAttributes(el: Element) {
       let tagName = el.tagName.toLowerCase();
 
@@ -1156,6 +1551,51 @@ async function getElementAttributes(
       const opacity = parseFloat(computedStyles.opacity);
       const elementOpacity = isNaN(opacity) ? undefined : opacity;
 
+      const listInfo = parseListInfo(el);
+      const fallbackListInfo = !listInfo.isListItem
+        ? parsePrefixListFallback(el)
+        : null;
+      const effectiveListInfo = fallbackListInfo ?? listInfo;
+      let listIndentForModel: number | undefined = effectiveListInfo.listIndent;
+      let listHangingForModel: number | undefined = effectiveListInfo.listHanging;
+      if (effectiveListInfo.isListItem) {
+        const listStylePos = effectiveListInfo.listStylePosition ?? "outside";
+        if (listStylePos !== "inside") {
+          if (effectiveListInfo.listStyleType) {
+            const fontSizePx = font?.size ?? 16;
+            const fontSizePt = Math.round(fontSizePx * 0.75);
+            const minHangingPt = Math.max(12, Math.round(fontSizePt * 0.9));
+            const desiredHangingPt = Math.max(minHangingPt, Math.round(fontSizePt * 1.2));
+            const minIndentPt =
+              desiredHangingPt + Math.max(8, Math.round(fontSizePt * 0.4));
+            const desiredIndentPt = Math.max(
+              Math.round(fontSizePt * 1.4),
+              minIndentPt
+            );
+
+            const indentPx = Math.round(desiredIndentPt / 0.75);
+            const hangingPx = Math.round(desiredHangingPt / 0.75);
+
+            if (position && position.left !== undefined) {
+              position.left = position.left - indentPx;
+              if (position.width !== undefined) {
+                position.width = position.width + indentPx;
+              }
+            }
+            listIndentForModel = indentPx;
+            listHangingForModel = hangingPx;
+          } else {
+            const shift = effectiveListInfo.listIndent ?? 0;
+            if (shift > 0 && position && position.left !== undefined) {
+              position.left = position.left - shift;
+              if (position.width !== undefined) {
+                position.width = position.width + shift;
+              }
+            }
+          }
+        }
+      }
+
       return {
         tagName: tagName,
         id: el.id,
@@ -1188,6 +1628,14 @@ async function getElementAttributes(
         should_screenshot: false,
         element: undefined,
         filters: filters,
+        isListItem: effectiveListInfo.isListItem,
+        listType: effectiveListInfo.listType,
+        listLevel: effectiveListInfo.listLevel,
+        listStyleType: effectiveListInfo.listStyleType,
+        listStylePosition: effectiveListInfo.listStylePosition,
+        listIndent: listIndentForModel,
+        listHanging: listHangingForModel,
+        listItemIndex: effectiveListInfo.listItemIndex,
       };
     }
 
