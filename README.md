@@ -1,3 +1,82 @@
+# README.md
+
+# Presenton (Fork/Branch): Nagarro-Template + PPTX-Export-Fidelity
+
+Dieses Repo/Branch dokumentiert und implementiert Verbesserungen für Presenton mit Fokus auf:
+
+- **Eigenes Template mit festen Hintergrundbildern** (z. B. Nagarro-Style)
+- **PPTX-Export**, der in PowerPoint **bearbeitbar** bleibt (Fonts, Bullets, Layout)
+- **Deterministischer Export** (weniger Race-Conditions, stabile Screenshot-IDs)
+
+Die Änderungen sind in `CHANGES.md` detailliert beschrieben.
+
+---
+
+## Was ich erreichen wollte
+
+Ich wollte ein eigenes Präsentations-Template bauen, bei dem:
+- jede Folie ein **festes Background-Bild** hat (Corporate Branding),
+- die Inhalte darüber (Headlines, Body, Bullets) in der Web-UI korrekt sitzen,
+- und der Export als **PPTX** diese Struktur sauber übernimmt (inkl. **nativen Bullets** und Marken-Fonts).
+
+Kurz: **Was du siehst (Web) ≈ was du bekommst (PPTX).**
+
+---
+
+## Wichtige Dateien
+
+- `CHANGES.md`  
+  Änderungsdoku: Themen, Ursachen, Umsetzung.
+- `SETUP.txt`  
+  Manuelles Setup zum lokalen Start (Web-UI + API + Assets).  
+
+
+- ./servers/Next.js (UI/Renderer): `servers/nextjs/`
+- ./servers/FastAPI (Export/Services): `servers/fastapi/`
+
+---
+
+## Highlights der Änderungen (Kurzfassung)
+
+- **Carrier/Template-PPTX Support** (`PPTX_TEMPLATE_PATH`)  
+  Export kann einen PPTX-Carrier laden → Slide-Size/Theme/Fonts konsistent.
+- **Theme-Fonts auf Equip/Equip Extended**  
+  PPTX nutzt Markenfonts (Body/Headings) statt Default-Fallback.
+- **Native Bullets**  
+  Listen werden als echte PPTX-Bullets geschrieben (nicht als “•”-Textzeichen/Marker-Shapes).
+- **Determinismus**  
+  Export wartet auf `__PRESENTON_EXPORT_READY__`, Animationen aus, stabile Screenshot-IDs via `domPath`.
+- **Template-Layouts** auf echte `<ul><li>` umgestellt  
+  DOM-Semantik verbessert → weniger Heuristik nötig.
+
+Details: siehe `CHANGES.md`.
+
+---
+
+## Quick Start (lokal)
+
+➡️ **Siehe `SETUP.txt`** 
+
+
+## Dokumentation
+
+- Änderungen: `CHANGES.md`
+- Setup: `SETUP.txt`
+
+---
+
+## Lizenz / Ursprung
+
+Presenton basiert auf dem Upstream-Projekt; dieses Repo enthält Anpassungen für Template- und Export-Fidelity.
+
+
+
+
+
+
+
+
+
 <p align="center">
   <img src="readme_assets/images/presenton-logo.png" height="90" alt="Presenton Logo" />
 </p>

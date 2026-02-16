@@ -1,0 +1,16 @@
+Image bauen: (im Presenton ordner ausführen)
+
+podman build -t presenton-local:patched . 
+
+
+
+Container starten: (im user ordner ausführen (demo muss dort liegen))
+
+podman run -it --name presenton -p 5003:80 `
+  -e CUSTOM_LLM_URL="YOURLLMURL" `
+  -e CUSTOM_LLM_API_KEY="YOURAPIKEY" `
+  -e CUSTOM_MODEL="gemini-2.5-pro@europe-central2" `
+  -e PPTX_TEMPLATE_PATH="/app/servers/fastapi/static/images/nagarro_fluidic/equip_carrier.pptx" `
+  -v "${PWD}\demo:/app_data" `
+  presenton-local:patched
+
