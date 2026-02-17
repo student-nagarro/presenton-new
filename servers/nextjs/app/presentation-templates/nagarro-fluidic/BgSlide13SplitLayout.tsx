@@ -124,7 +124,7 @@ function RendererLayout({ data }) {
           </h1>
 
           {/* IMPORTANT: keep bullets in ONE bounded text node (prevents PPTX exporter from placing items below the slide) */}
-          <div style={{ marginTop: "18px", maxHeight: bulletMaxH + "px", overflow: "hidden" }}>
+          <div style={{ marginTop: "26px", maxHeight: bulletMaxH + "px", overflow: "hidden" }}>
             <BulletRows items={b} fontSize={bulletSize} lineHeight={bulletLineHeight} maxItems={7} />
           </div>
 

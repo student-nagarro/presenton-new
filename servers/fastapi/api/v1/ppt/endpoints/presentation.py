@@ -470,9 +470,17 @@ async def check_if_api_request_is_valid(
             detail="Number of slides must be greater than 0",
         )
 
+    # Force template (server override) before validation
+    forced = (os.getenv("FORCED_TEMPLATE") or "").strip().lower().replace("_", "-")
+    if forced:
+        request.template = forced
+
+    # Normalize template before validation
+    request.template = (request.template or "").strip().lower().replace("_", "-")
+    normalized_defaults = {t.strip().lower().replace("_", "-") for t in DEFAULT_TEMPLATES}
+
     # Checking if template is valid
-    if request.template not in DEFAULT_TEMPLATES:
-        request.template = request.template.lower()
+    if request.template not in normalized_defaults:
         if not request.template.startswith("custom-"):
             raise HTTPException(
                 status_code=400,

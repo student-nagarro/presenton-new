@@ -114,19 +114,19 @@ function RendererLayout({ data }) {
                   overflow: "hidden",
                 }}
               >
-                <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#0f172a", lineHeight: 1.15, maxHeight: "50px", overflow: "hidden" }}>
-                  {it.title}
-                </h2>
+                  <h2 style={{ margin: 0, fontSize: "22px", fontWeight: 800, color: "#0f172a", lineHeight: 1.15, maxHeight: "56px", overflow: "hidden" }}>
+                    {it.title}
+                  </h2>
 
-                <div style={{ marginTop: "8px", color: "rgba(15,23,42,0.85)", maxHeight: "120px", overflow: "hidden" }}>
-                  {showBullets ? (
-                    <BulletRows items={b} fontSize={14} lineHeight={1.30} maxItems={5} />
-                  ) : (
-                    <p style={{ margin: 0, fontSize: "14px", lineHeight: 1.30, whiteSpace: "pre-wrap" }}>
-                      {it.body}
-                    </p>
-                  )}
-                </div>
+                  <div style={{ marginTop: "8px", color: "rgba(15,23,42,0.85)", maxHeight: "130px", overflow: "hidden" }}>
+                    {showBullets ? (
+                      <BulletRows items={b} fontSize={16} lineHeight={1.30} maxItems={5} />
+                    ) : (
+                      <p style={{ margin: 0, fontSize: "16px", lineHeight: 1.30, whiteSpace: "pre-wrap" }}>
+                        {it.body}
+                      </p>
+                    )}
+                  </div>
               </div>
             )
           })}
